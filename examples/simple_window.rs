@@ -24,8 +24,8 @@ fn egui_vertex_to_sdl(v: &egui::epaint::Vertex, ppp: f32) -> SDL_Vertex {
   let [r, g, b, a] = v.color.to_array();
   SDL_Vertex {
       position: SDL_FPoint { x: v.pos.x * ppp, y: v.pos.y * ppp },
-      color:    SDL_Color   { r, g, b, a },
-      tex_coord: SDL_FPoint { x: v.uv.x,     y: v.uv.y },
+      color: SDL_Color   { r, g, b, a },
+      tex_coord: SDL_FPoint { x: v.uv.x, y: v.uv.y },
   }
 }
 
@@ -64,16 +64,12 @@ let sdl_context = sdl2::init().unwrap();
 
 // sdl2::hint::set("SDL_RENDER_SCALE_QUALITY", "1"); // for pixel linear interpolation. TODO needed ?
 let image_context = sdl2::image::init(image::InitFlag::PNG).unwrap();
-
 let video_subsystem = sdl_context.video().unwrap();
-
 let ttf_context = sdl2::ttf::init().unwrap();
 
 // TODO flag "init music ... "
 let mixer_subsystem = mixer::init(mixer::InitFlag::MP3 | mixer::InitFlag::OGG).unwrap();
-
 sdl2::mixer::open_audio(44100, AUDIO_S16LSB, DEFAULT_CHANNELS, 1024).unwrap();
-
 sdl2::mixer::allocate_channels(16);
 
 // Window creation
@@ -233,6 +229,9 @@ fn main() {
 
     // Now render every "ClippedPrimitive" from v_primitives 
     let ppp: f32 = ctx.pixels_per_point();
+    mysdl2.canvas.set_draw_color(Color::RGB(0, 0, 0));
+    mysdl2.canvas.clear();
+    
     for ClippedPrimitive { clip_rect, primitive } in v_primitives {
       // 1) Skip Primitive::PaintCallback (which is advanced stuff), focus on Mesh
       let Primitive::Mesh(mesh) = primitive else { continue };
@@ -283,9 +282,7 @@ fn main() {
     }
     mysdl2.canvas.set_clip_rect(None); 
 
-    // Render (draw, update screen)
-    mysdl2.canvas.set_draw_color(Color::RGB(0, 0, 0));
-    mysdl2.canvas.clear();
+    // Render
     mysdl2.canvas.present();
 
     // Maintain a consistent frame rate
