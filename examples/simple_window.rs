@@ -1,5 +1,6 @@
 use std::time::{Duration, Instant};
 
+use egui::RawInput;
 use sdl2::{event::Event, image::{self, Sdl2ImageContext}, keyboard::Keycode, mixer::{self, Sdl2MixerContext, AUDIO_S16LSB, DEFAULT_CHANNELS}, pixels::Color, render::{Canvas, TextureCreator}, ttf::Sdl2TtfContext, video::{Window, WindowContext}, IntegerOrSdlError, Sdl, VideoSubsystem};
 use winapi::{shared::windef::DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, um::winuser::SetProcessDpiAwarenessContext};
 
@@ -53,7 +54,7 @@ sdl2::mixer::allocate_channels(16);
 // Window creation
 let mut windowb = video_subsystem.window(win_title, win_width, win_height);
 println!("windowb flags !!!!! 3- {}", windowb.window_flags()); // TODO simplify
-windowb.allow_highdpi().position_centered().resizable().maximized();
+windowb.allow_highdpi().position_centered();
 
 let window = windowb.build().unwrap();
 
@@ -102,7 +103,8 @@ impl MySdl2 {
 
 fn main() {
   // 1. Init SDL2 
-  let mut mysdl2 = MySdl2::new("my app", 800, 500);
+  let screen_size = (800, 500); // w, h
+  let mut mysdl2 = MySdl2::new("my app", screen_size.0, screen_size.1);
 
   let mut event_pump = mysdl2.sdl_context.event_pump().unwrap();
 
@@ -127,6 +129,18 @@ fn main() {
    // let delta_time = now.duration_since(last_update).as_secs_f32();
     //last_update = now;
 
+    let raw_input = RawInput {
+      screen_rect: Some(egui::Rect::from_min_size(
+        egui::Pos2::ZERO,
+        egui::Vec2 {
+          x: screen_size.0 as f32,
+          y: screen_size.1 as f32,
+        },
+      )),
+      ..Default::default()
+    };
+    ctx.begin_pass(raw_input);
+
     egui::Window::new("Hello, world!").show(&ctx, |ui| {
       ui.label("Hello, world!");
       if ui.button("Greet").clicked() {
@@ -138,6 +152,11 @@ fn main() {
       });
       ui.code_editor(&mut text);
     });
+
+    let output = ctx.end_pass();
+    let paint_job = ctx.tessellate(output.shapes, ctx.pixels_per_point());
+
+    // Now I try to convert that vector of ClippedPrimitive into something I can render
 
     // Render (draw, update screen)
     mysdl2.canvas.set_draw_color(Color::RGB(0, 0, 0));
