@@ -1,0 +1,13 @@
+[package]
+name = "egui_sdl2_renderer"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+egui = "0.31.1"
+winapi = { version = "0.3", features = ["winuser"] }
+
+[dependencies.sdl2]
+version = "0.37"
+default-features = false
+features = ["image", "mixer", "ttf"]
