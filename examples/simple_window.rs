@@ -1,8 +1,19 @@
 use std::time::{Duration, Instant};
+use std::collections::HashMap;
 
+use egui::epaint::ImageDelta;
 use egui::RawInput;
+use sdl2::pixels::PixelFormatEnum;
+use sdl2::rect::Rect;
+use sdl2::render::Texture;
 use sdl2::{event::Event, image::{self, Sdl2ImageContext}, keyboard::Keycode, mixer::{self, Sdl2MixerContext, AUDIO_S16LSB, DEFAULT_CHANNELS}, pixels::Color, render::{Canvas, TextureCreator}, ttf::Sdl2TtfContext, video::{Window, WindowContext}, IntegerOrSdlError, Sdl, VideoSubsystem};
 use winapi::{shared::windef::DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, um::winuser::SetProcessDpiAwarenessContext};
+
+// R, G, B, A is passed in order to the SDL, hence the format :
+#[cfg(target_endian = "little")]
+const SDL_EGUI_FORMAT: PixelFormatEnum = PixelFormatEnum::ABGR8888; // bytes = RGBA
+#[cfg(target_endian = "big")]
+const SDL_EGUI_FORMAT: PixelFormatEnum = PixelFormatEnum::RGBA8888; // bytes = RGBA
 
 fn init_sdl2(
   win_title: &str,
@@ -101,10 +112,53 @@ impl MySdl2 {
   }
 }
 
+pub fn update_egui_texture(id: egui::TextureId, delta: &ImageDelta, textures: &mut HashMap<egui::TextureId, Texture>,
+  tc: &TextureCreator<WindowContext>) -> Result<(), String> 
+{
+  // 1. Flatten 
+  let (mut bytes, w, h) = match &delta.image {
+    egui::ImageData::Color(img) => {
+      let mut buf = Vec::with_capacity(img.pixels.len() * 4);
+      buf.extend(img.pixels.iter().flat_map(|&c| c.to_array()));
+      (buf, img.width() as u32, img.height() as u32)
+    }
+    egui::ImageData::Font(img) => {
+      let mut buf = Vec::with_capacity(img.width() * img.height() * 4); // Todo: use pixels.len() and factorize 
+      buf.extend(img.srgba_pixels(None).flat_map(|c| c.to_array()));
+      (buf, img.width() as u32, img.height() as u32)
+    }
+  };
+
+  let pitch = (w * 4) as usize;
+
+  // 2. create / resize the SDL texture
+  let tex = textures.entry(id).or_insert_with(|| {
+    tc.create_texture_streaming(SDL_EGUI_FORMAT, w, h) // ABGR8888 on Little-Endian               
+      .expect("failed to create atlas texture")
+  });
+
+  // If size changed, recreate the texture 
+  let q = tex.query();
+  if q.width != w || q.height != h {
+      *tex = tc.create_texture_streaming(PixelFormatEnum::RGBA32, w, h).unwrap();
+  }
+
+  // Patch upload (or full upload)
+  if let Some([x, y]) = delta.pos {
+      let rect = Rect::new(x as i32, y as i32, w, h);
+      tex.update(rect, &bytes, pitch);
+  } else {
+      tex.update(None, &bytes, pitch);
+  }
+  Ok(())
+}
+
 fn main() {
   // 1. Init SDL2 
   let screen_size = (800, 500); // w, h
   let mut mysdl2 = MySdl2::new("my app", screen_size.0, screen_size.1);
+
+  let mut egui_tex_map: HashMap<egui::TextureId, Texture> = HashMap::new();
 
   let mut event_pump = mysdl2.sdl_context.event_pump().unwrap();
 
@@ -114,6 +168,7 @@ fn main() {
   let ctx = egui::Context::default();
   let mut color = [0.0, 0.0, 0.0, 1.0];
   let mut text = String::new();
+
 
   'myloop: loop {
     // Handle events 
@@ -157,6 +212,9 @@ fn main() {
     let paint_job = ctx.tessellate(output.shapes, ctx.pixels_per_point());
 
     // Now I try to convert that vector of ClippedPrimitive into something I can render
+    for (id, delta) in output.textures_delta.set {
+      update_egui_texture(id, &delta, &mut egui_tex_map, &mysdl2.texture_creator)?;
+    }
 
     // Render (draw, update screen)
     mysdl2.canvas.set_draw_color(Color::RGB(0, 0, 0));
