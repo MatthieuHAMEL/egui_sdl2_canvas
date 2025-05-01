@@ -1,8 +1,8 @@
 use std::time::{Duration, Instant};
 use std::collections::HashMap;
 
-use egui::epaint::ImageDelta;
-use egui::RawInput;
+use egui::epaint::{ImageDelta, Primitive};
+use egui::{ClippedPrimitive, RawInput};
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::rect::Rect;
 use sdl2::render::Texture;
@@ -112,8 +112,9 @@ impl MySdl2 {
   }
 }
 
-pub fn update_egui_texture(id: egui::TextureId, delta: &ImageDelta, textures: &mut HashMap<egui::TextureId, Texture>,
-  tc: &TextureCreator<WindowContext>) -> Result<(), String> 
+pub fn update_egui_texture<'a>(id: egui::TextureId, delta: &ImageDelta, 
+  textures: &mut HashMap<egui::TextureId, Texture<'a>>,
+  tc: &'a TextureCreator<WindowContext>) -> Result<(), String> 
 {
   // 1. Flatten 
   let (mut bytes, w, h) = match &delta.image {
@@ -146,9 +147,9 @@ pub fn update_egui_texture(id: egui::TextureId, delta: &ImageDelta, textures: &m
   // Patch upload (or full upload)
   if let Some([x, y]) = delta.pos {
       let rect = Rect::new(x as i32, y as i32, w, h);
-      tex.update(rect, &bytes, pitch);
+      tex.update(rect, &bytes, pitch).unwrap();
   } else {
-      tex.update(None, &bytes, pitch);
+      tex.update(None, &bytes, pitch).unwrap();
   }
   Ok(())
 }
@@ -181,9 +182,6 @@ fn main() {
 
     // Update logic 
     let now = Instant::now();
-   // let delta_time = now.duration_since(last_update).as_secs_f32();
-    //last_update = now;
-
     let raw_input = RawInput {
       screen_rect: Some(egui::Rect::from_min_size(
         egui::Pos2::ZERO,
@@ -191,7 +189,7 @@ fn main() {
           x: screen_size.0 as f32,
           y: screen_size.1 as f32,
         },
-      )),
+      )), // TODO sdl2 input --> RawInput (use crate egui_sdl2_platform?)
       ..Default::default()
     };
     ctx.begin_pass(raw_input);
@@ -199,22 +197,50 @@ fn main() {
     egui::Window::new("Hello, world!").show(&ctx, |ui| {
       ui.label("Hello, world!");
       if ui.button("Greet").clicked() {
-      println!("Hello, world!");
+        println!("Hello, world!");
       }
       ui.horizontal(|ui| {
-      ui.label("Color: ");
-      ui.color_edit_button_rgba_premultiplied(&mut color);
+        ui.label("Color: ");
+        ui.color_edit_button_rgba_premultiplied(&mut color);
       });
       ui.code_editor(&mut text);
     });
 
     let output = ctx.end_pass();
-    let paint_job = ctx.tessellate(output.shapes, ctx.pixels_per_point());
+    let v_primitives = ctx.tessellate(output.shapes, ctx.pixels_per_point());
+      // TODO egui_sdl2_platform clones output.shapes here ... why ? 
+    // cf  https://github.com/GetAGripGal/egui_sdl2_platform/blob/dde284892788008025971550f5522140383ca9d9/src/platform.rs#L306
 
-    // Now I try to convert that vector of ClippedPrimitive into something I can render
+    // Convert textures_delta (image data) to SDL2 textures :
     for (id, delta) in output.textures_delta.set {
-      update_egui_texture(id, &delta, &mut egui_tex_map, &mysdl2.texture_creator)?;
+      update_egui_texture(id, &delta, &mut egui_tex_map, &mysdl2.texture_creator).unwrap();
     }
+    // TODO texture_delta.free (!)
+
+    // Now render every "ClippedPrimitive" from v_primitives 
+    let ppp: f32 = ctx.pixels_per_point();
+    for ClippedPrimitive { clip_rect, primitive } in v_primitives {
+      // 1) Skip Primitive::PaintCallback (which is advanced stuff), focus on Mesh
+      let Primitive::Mesh(mesh) = primitive else { continue };
+
+      // 2) Get the sdl texture
+      let texture = match egui_tex_map.get(&mesh.texture_id) {
+        Some(t) => Some(t),
+        None    => None, // egui may draw untextured shape
+      }; // TODO just to decompose ... .
+
+      // 3) clip rect (egui units -> pixels)
+      let clip = sdl2::rect::Rect::new(
+        (clip_rect.min.x * ppp) as i32,
+        (clip_rect.min.y * ppp) as i32,
+        ((clip_rect.max.x - clip_rect.min.x) * ppp) as u32,
+        ((clip_rect.max.y - clip_rect.min.y) * ppp) as u32,
+      );
+      mysdl2.canvas.set_clip_rect(clip);
+
+      // TODO get sdl2 vertices, indices, and draw (use sdl2_sys , go unsafe)
+    }
+    mysdl2.canvas.set_clip_rect(None); 
 
     // Render (draw, update screen)
     mysdl2.canvas.set_draw_color(Color::RGB(0, 0, 0));
@@ -223,11 +249,8 @@ fn main() {
 
     // Maintain a consistent frame rate
     let frame_duration = now.elapsed();
-    if frame_duration < target_frame_duration { // TODO not needed with VSYNC ?
+    if frame_duration < target_frame_duration {
       std::thread::sleep(target_frame_duration - frame_duration);
-    } // else application is quite overwhelmed! ... 
+    } 
   }
-
-
 }
-
