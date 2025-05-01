@@ -7,6 +7,7 @@ use sdl2::pixels::PixelFormatEnum;
 use sdl2::rect::Rect;
 use sdl2::render::Texture;
 use sdl2::{event::Event, image::{self, Sdl2ImageContext}, keyboard::Keycode, mixer::{self, Sdl2MixerContext, AUDIO_S16LSB, DEFAULT_CHANNELS}, pixels::Color, render::{Canvas, TextureCreator}, ttf::Sdl2TtfContext, video::{Window, WindowContext}, IntegerOrSdlError, Sdl, VideoSubsystem};
+use sdl2_sys::{SDL_RenderGeometry, SDL_Renderer, SDL_Texture};
 use winapi::{shared::windef::DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, um::winuser::SetProcessDpiAwarenessContext};
 
 // R, G, B, A is passed in order to the SDL, hence the format :
@@ -14,6 +15,19 @@ use winapi::{shared::windef::DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, um::win
 const SDL_EGUI_FORMAT: PixelFormatEnum = PixelFormatEnum::ABGR8888; // bytes = RGBA
 #[cfg(target_endian = "big")]
 const SDL_EGUI_FORMAT: PixelFormatEnum = PixelFormatEnum::RGBA8888; // bytes = RGBA
+
+use std::os::raw::c_int;
+use sdl2::sys::{SDL_Vertex, SDL_FPoint, SDL_Color};
+
+#[inline]
+fn egui_vertex_to_sdl(v: &egui::epaint::Vertex, ppp: f32) -> SDL_Vertex {
+  let [r, g, b, a] = v.color.to_array();
+  SDL_Vertex {
+      position: SDL_FPoint { x: v.pos.x * ppp, y: v.pos.y * ppp },
+      color:    SDL_Color   { r, g, b, a },
+      tex_coord: SDL_FPoint { x: v.uv.x,     y: v.uv.y },
+  }
+}
 
 fn init_sdl2(
   win_title: &str,
@@ -224,10 +238,9 @@ fn main() {
       let Primitive::Mesh(mesh) = primitive else { continue };
 
       // 2) Get the sdl texture
-      let texture = match egui_tex_map.get(&mesh.texture_id) {
-        Some(t) => Some(t),
-        None    => None, // egui may draw untextured shape
-      }; // TODO just to decompose ... .
+      let texture_ptr = egui_tex_map.get(&mesh.texture_id)
+        .map(|t| t.raw() as *mut SDL_Texture)
+        .unwrap_or(std::ptr::null_mut()); // egui may draw untextured shape (nullptr in SDL_RenderGeometry)
 
       // 3) clip rect (egui units -> pixels)
       let clip = sdl2::rect::Rect::new(
@@ -238,7 +251,35 @@ fn main() {
       );
       mysdl2.canvas.set_clip_rect(clip);
 
-      // TODO get sdl2 vertices, indices, and draw (use sdl2_sys , go unsafe)
+      // 4) convert egui vertices to SDL_Vertex (go unsafe, No vertex type in sdl2 crate)
+      // TODO - assert mesh.vertices is not empty ?
+      let sdl_vertices: Vec<SDL_Vertex> = mesh.vertices
+        .iter()
+        .map(|v| egui_vertex_to_sdl(v, ppp))
+        .collect();
+      let verts_len = sdl_vertices.len() as c_int;
+      let verts_ptr  = sdl_vertices.as_ptr();
+
+      // 5) indices: egui uses u32, SDL wants c_int
+      let idxs_len = mesh.indices.len() as c_int;
+      let idxs_ptr = if idxs_len == 0 {
+        std::ptr::null() 
+      } else { 
+        mesh.indices.as_ptr() as *const c_int // array of u32 -> array of c_int (<=> i32)
+      };
+
+      // 6) draw!
+      let rv = unsafe {
+        SDL_RenderGeometry(
+          mysdl2.canvas.raw() as *mut SDL_Renderer,
+          texture_ptr,
+          verts_ptr, verts_len,
+          idxs_ptr, idxs_len,
+        )
+      };
+      if rv != 0 {
+        println!("problem"); // todo  :) 
+      }
     }
     mysdl2.canvas.set_clip_rect(None); 
 
@@ -252,5 +293,5 @@ fn main() {
     if frame_duration < target_frame_duration {
       std::thread::sleep(target_frame_duration - frame_duration);
     } 
-  }
+  } // Main loop 
 }
