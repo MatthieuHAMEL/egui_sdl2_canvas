@@ -57,7 +57,7 @@ pub fn update_egui_texture<'a>(id: egui::TextureId, delta: &ImageDelta,
   // If size changed, recreate the texture 
   let q = tex.query();
   if q.width != w || q.height != h {
-      *tex = tc.create_texture_streaming(PixelFormatEnum::RGBA32, w, h).unwrap();
+      *tex = tc.create_texture_streaming(SDL_EGUI_FORMAT, w, h).unwrap();
   }
 
   // Patch upload (or full upload)
