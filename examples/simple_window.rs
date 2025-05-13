@@ -5,7 +5,7 @@ use egui::epaint::{ImageDelta, Primitive};
 use egui::{ClippedPrimitive, RawInput};
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::rect::Rect;
-use sdl2::render::Texture;
+use sdl2::render::{BlendMode, Texture};
 use sdl2::{event::Event, image::{self, Sdl2ImageContext}, keyboard::Keycode, mixer::{self, Sdl2MixerContext, AUDIO_S16LSB, DEFAULT_CHANNELS}, pixels::Color, render::{Canvas, TextureCreator}, ttf::Sdl2TtfContext, video::{Window, WindowContext}, IntegerOrSdlError, Sdl, VideoSubsystem};
 use sdl2_sys::{SDL_RenderGeometry, SDL_Renderer, SDL_Texture};
 use winapi::{shared::windef::DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, um::winuser::SetProcessDpiAwarenessContext};
@@ -127,7 +127,7 @@ pub fn update_egui_texture<'a>(id: egui::TextureId, delta: &ImageDelta,
   tc: &'a TextureCreator<WindowContext>) -> Result<(), String> 
 {
   // 1. Flatten 
-  let (mut bytes, w, h) = match &delta.image {
+  let (bytes, w, h) = match &delta.image {
     egui::ImageData::Color(img) => {
       let mut buf = Vec::with_capacity(img.pixels.len() * 4);
       buf.extend(img.pixels.iter().flat_map(|&c| c.to_array()));
@@ -144,8 +144,10 @@ pub fn update_egui_texture<'a>(id: egui::TextureId, delta: &ImageDelta,
 
   // 2. create / resize the SDL texture
   let tex = textures.entry(id).or_insert_with(|| {
-    tc.create_texture_streaming(SDL_EGUI_FORMAT, w, h) // ABGR8888 on Little-Endian               
-      .expect("failed to create atlas texture")
+    let mut t = tc.create_texture_streaming(SDL_EGUI_FORMAT, w, h) // ABGR8888 on Little-Endian               
+      .expect("failed to create atlas texture");
+    t.set_blend_mode(BlendMode::Blend);
+    t
   });
 
   // If size changed, recreate the texture 
@@ -202,7 +204,8 @@ fn main() {
       )), // TODO sdl2 input --> RawInput (use crate egui_sdl2_platform?)
       ..Default::default()
     };
-    ctx.begin_pass(raw_input);
+    ctx.begin_frame(raw_input); // TODO replace by begin_pass once my 
+    // PR is merged (https://github.com/GetAGripGal/egui_sdl2_platform/pull/8)
 
     egui::Window::new("Hello, world!").show(&ctx, |ui| {
       ui.label("Hello, world!");
@@ -216,7 +219,7 @@ fn main() {
       ui.code_editor(&mut text);
     });
 
-    let output = ctx.end_pass();
+    let output = ctx.end_frame();
     let v_primitives = ctx.tessellate(output.shapes, ctx.pixels_per_point());
       // TODO egui_sdl2_platform clones output.shapes here ... why ? 
     // cf  https://github.com/GetAGripGal/egui_sdl2_platform/blob/dde284892788008025971550f5522140383ca9d9/src/platform.rs#L306
@@ -231,10 +234,14 @@ fn main() {
     let ppp: f32 = ctx.pixels_per_point();
     mysdl2.canvas.set_draw_color(Color::RGB(0, 0, 0));
     mysdl2.canvas.clear();
-    
+
     for ClippedPrimitive { clip_rect, primitive } in v_primitives {
       // 1) Skip Primitive::PaintCallback (which is advanced stuff), focus on Mesh
-      let Primitive::Mesh(mesh) = primitive else { continue };
+      let Primitive::Mesh(mesh) = primitive 
+        else {
+          println!("encountered a PaintCallback"); 
+          continue 
+        };
 
       // 2) Get the sdl texture
       let texture_ptr = egui_tex_map.get(&mesh.texture_id)
