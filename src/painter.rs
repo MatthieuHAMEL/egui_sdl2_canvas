@@ -148,9 +148,5 @@ impl<'a> Painter<'a> {
       }
     }
   }
-
-  pub fn paint(&self) {
-    
-  }
 }
 

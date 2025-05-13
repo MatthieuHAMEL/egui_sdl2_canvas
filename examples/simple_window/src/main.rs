@@ -99,20 +99,15 @@ fn main() {
   // 1. Init SDL2 
   let screen_size = (800, 500); // w, h
   let mut mysdl2 = MySdl2::new("my app", screen_size.0, screen_size.1);
-
   let mut platform = egui_sdl2_platform::Platform::new(mysdl2.window_dim).unwrap();
-
+  let mut painter = Painter::new();
   let mut event_pump = mysdl2.sdl_context.event_pump().unwrap();
-
   let target_frame_duration = Duration::from_secs_f32(1.0 / 60.0); // Targeting 60 FPS
-  let mut last_update = Instant::now(); 
 
   let mut color = [0.0, 0.0, 0.0, 1.0];
   let mut text = String::new();
 
   let start_time = Instant::now();
-
-  let mut painter = Painter::new();
 
   'myloop: loop {
     platform.update_time(start_time.elapsed().as_secs_f64());
@@ -122,8 +117,9 @@ fn main() {
     for event in event_pump.poll_iter() {
       match event {
         Event::Quit {..} => { break 'myloop }, 
-        _ => { continue; /* Nothing for now */ } // TODO if window resized, tell the painter
+        _ => { /* Nothing for now */ } // TODO if window resized, tell the painter
       }
+      platform.handle_event(&event, &mysdl2.sdl_context, &mysdl2._video_subsystem);
     }
     let ctx = platform.context();
     egui::Window::new("Hello, world!").show(&ctx, |ui| {
