@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 use egui_sdl2_renderer::Painter;
-use sdl2::{event::Event, image::{self, Sdl2ImageContext}, mixer::{self, Sdl2MixerContext, AUDIO_S16LSB, DEFAULT_CHANNELS}, render::{Canvas, TextureCreator}, ttf::Sdl2TtfContext, video::{Window, WindowContext}, IntegerOrSdlError, Sdl, VideoSubsystem};
+use sdl2::{event::Event, image::{self, Sdl2ImageContext}, mixer::{self, Sdl2MixerContext, AUDIO_S16LSB, DEFAULT_CHANNELS}, pixels::Color, render::{Canvas, TextureCreator}, ttf::Sdl2TtfContext, video::{Window, WindowContext}, IntegerOrSdlError, Sdl, VideoSubsystem};
 use winapi::{shared::windef::DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, um::winuser::SetProcessDpiAwarenessContext};
 
 fn init_sdl2(
@@ -140,6 +140,9 @@ fn main() {
     // cf  https://github.com/GetAGripGal/egui_sdl2_platform/blob/dde284892788008025971550f5522140383ca9d9/src/platform.rs#L306
 
     // Convert textures_delta (image data) to SDL2 textures, and draw
+    mysdl2.canvas.set_draw_color(Color::RGB(0, 0, 0));
+    mysdl2.canvas.clear();
+
     painter.paint_and_update_textures(
       output.textures_delta, &mysdl2.texture_creator, 
       v_primitives, &mut mysdl2.canvas);

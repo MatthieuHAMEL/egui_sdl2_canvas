@@ -92,9 +92,6 @@ impl<'a> Painter<'a> {
 
     // Now render every "ClippedPrimitive" from v_primitives 
     let ppp: f32 = 1.0; // TODO ctx.pixels_per_point();
-    canvas.set_draw_color(Color::RGB(0, 0, 0));
-    canvas.clear();
-
     for ClippedPrimitive { clip_rect, primitive } in paint_jobs {
       // 1) Skip Primitive::PaintCallback (which is advanced stuff), focus on Mesh
       let Primitive::Mesh(mesh) = primitive 
