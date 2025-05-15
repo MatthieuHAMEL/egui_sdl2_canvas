@@ -3,7 +3,7 @@ use egui::epaint::{ImageDelta, Primitive};
 use egui::{ClippedPrimitive, TexturesDelta};
 use sdl2::rect::Rect;
 use sdl2::render::{BlendMode, Canvas, Texture, TextureCreator};
-use sdl2::pixels::{Color, PixelFormatEnum};
+use sdl2::pixels::PixelFormatEnum;
 use sdl2::video::{Window, WindowContext};
 use sdl2_sys::{SDL_RenderGeometry, SDL_Renderer, SDL_Texture};
 use sdl2::sys::{SDL_Vertex, SDL_FPoint, SDL_Color};
@@ -43,7 +43,7 @@ pub fn update_egui_texture<'a>(id: egui::TextureId, delta: &ImageDelta,
       (buf, img.width() as u32, img.height() as u32)
     }
   };
-
+  
   let pitch = (w * 4) as usize;
 
   // 2. create / resize the SDL texture
@@ -54,11 +54,12 @@ pub fn update_egui_texture<'a>(id: egui::TextureId, delta: &ImageDelta,
     t
   });
 
+  // This code is wrong !!!
   // If size changed, recreate the texture 
-  let q = tex.query();
-  if q.width != w || q.height != h {
-      *tex = tc.create_texture_streaming(SDL_EGUI_FORMAT, w, h).unwrap();
-  }
+  //let q = tex.query();
+  //if q.width != w || q.height != h {
+  //    *tex = tc.create_texture_streaming(SDL_EGUI_FORMAT, w, h).unwrap();
+  //}
 
   // Patch upload (or full upload)
   if let Some([x, y]) = delta.pos {
@@ -96,8 +97,8 @@ impl<'a> Painter<'a> {
       // 1) Skip Primitive::PaintCallback (which is advanced stuff), focus on Mesh
       let Primitive::Mesh(mesh) = primitive 
         else {
-          println!("encountered a PaintCallback"); 
-          continue 
+          panic!("encountered a PaintCallback"); 
+          //continue 
         };
 
       // 2) Get the sdl texture

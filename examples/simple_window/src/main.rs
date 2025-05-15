@@ -117,6 +117,9 @@ fn main() {
     for event in event_pump.poll_iter() {
       match event {
         Event::Quit {..} => { break 'myloop }, 
+        Event::MouseButtonUp { .. } => { 
+          println!("For debug break");
+         },
         _ => { /* Nothing for now */ } // TODO if window resized, tell the painter
       }
       platform.handle_event(&event, &mysdl2.sdl_context, &mysdl2._video_subsystem);
