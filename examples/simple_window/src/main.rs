@@ -14,7 +14,6 @@ fn init_sdl2(
    Sdl2MixerContext,
    Canvas<Window>) 
 {
-//let mut b = sdl2::hint::set_with_priority("SDL_HINT_VIDEO_HIGHDPI_DISABLED", "1", &sdl2::hint::Hint::Override);
 // For some reason the hint below was not enough and I had to do that
 unsafe {  // TODO this is only on windows ...
   SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
@@ -47,7 +46,6 @@ sdl2::mixer::allocate_channels(16);
 
 // Window creation
 let mut windowb = video_subsystem.window(win_title, win_width, win_height);
-println!("windowb flags !!!!! 3- {}", windowb.window_flags()); // TODO simplify
 windowb.allow_highdpi().position_centered();
 
 let window = windowb.build().unwrap();
@@ -55,8 +53,7 @@ let window = windowb.build().unwrap();
 // The main object to render textures on (<=> SDL_CreateRenderer)
 let canvas: Canvas<Window> = window
   .into_canvas()
-  // .present_vsync()
-  .build() // vsync : (TODO : VSYNC support vs no vsync support)
+  .build()
   .map_err(|e| match e {
     IntegerOrSdlError::IntegerOverflows(msg, val) => {
       format!("int overflow {}, val: {}", msg, val)
@@ -104,11 +101,11 @@ fn main() {
   let mut event_pump = mysdl2.sdl_context.event_pump().unwrap();
   let target_frame_duration = Duration::from_secs_f32(1.0 / 60.0); // Targeting 60 FPS
 
+  // Used in the egui window :
   let mut color = [0.0, 0.0, 0.0, 1.0];
   let mut text = String::new();
 
   let start_time = Instant::now();
-
   'myloop: loop {
     platform.update_time(start_time.elapsed().as_secs_f64());
     let now = Instant::now();
@@ -117,10 +114,7 @@ fn main() {
     for event in event_pump.poll_iter() {
       match event {
         Event::Quit {..} => { break 'myloop }, 
-        Event::MouseButtonUp { .. } => { 
-          println!("For debug break");
-         },
-        _ => { /* Nothing for now */ } // TODO if window resized, tell the painter
+        _ => { /* Nothing for now */ } // TODO test when window resizes
       }
       platform.handle_event(&event, &mysdl2.sdl_context, &mysdl2._video_subsystem);
     }
@@ -139,19 +133,16 @@ fn main() {
 
     let output = platform.end_frame(&mut mysdl2._video_subsystem).unwrap();
     let v_primitives = platform.tessellate(&output);
-      // TODO egui_sdl2_platform clones output.shapes here ... why ? 
-    // cf  https://github.com/GetAGripGal/egui_sdl2_platform/blob/dde284892788008025971550f5522140383ca9d9/src/platform.rs#L306
 
     // Convert textures_delta (image data) to SDL2 textures, and draw
     mysdl2.canvas.set_draw_color(Color::RGB(0, 0, 0));
     mysdl2.canvas.clear();
 
     painter.paint_and_update_textures(
-      output.textures_delta, &mysdl2.texture_creator, 
-      v_primitives, &mut mysdl2.canvas);
+      ctx.pixels_per_point(),
+      &output.textures_delta, &mysdl2.texture_creator, 
+      &v_primitives, &mut mysdl2.canvas);
     
-    mysdl2.canvas.set_clip_rect(None); 
-
     // Render
     mysdl2.canvas.present();
 
