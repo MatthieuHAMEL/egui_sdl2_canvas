@@ -138,10 +138,12 @@ fn main() {
     mysdl2.canvas.set_draw_color(Color::RGB(0, 0, 0));
     mysdl2.canvas.clear();
 
-    painter.paint_and_update_textures(
+    if let Err(err) = painter.paint_and_update_textures(
       ctx.pixels_per_point(),
       &output.textures_delta, &mysdl2.texture_creator, 
-      &v_primitives, &mut mysdl2.canvas);
+      &v_primitives, &mut mysdl2.canvas) {
+        println!("{}", err);
+    }
     
     // Render
     mysdl2.canvas.present();

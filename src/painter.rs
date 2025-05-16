@@ -32,16 +32,18 @@ pub fn update_egui_texture<'a>(id: &egui::TextureId, delta: &ImageDelta,
 {
   // 1. Flatten (TODO , some allocations may be avoided here, see :
   // https://github.com/emilk/egui/blob/81b7e7f05a6b03fa2cd5bdc6d4ce5f598e16c628/crates/egui_glow/src/painter.rs#L470)
-  let (bytes, w, h) = match &delta.image {
+  // Allocate buffer outside the match to ensure it lives long enough
+  let mut _buf: Option<Vec<u8>> = None;
+
+  let (bytes, w, h): (&[u8], u32, u32) = match &delta.image {
     egui::ImageData::Color(img) => {
-      let mut buf = Vec::with_capacity(img.pixels.len() * 4);
-      buf.extend(img.pixels.iter().flat_map(|&c| c.to_array()));
-      (buf, img.width() as u32, img.height() as u32)
+      let bytes : &[u8] = bytemuck::cast_slice(img.pixels.as_ref());
+      (bytes, img.width() as u32, img.height() as u32)
     }
     egui::ImageData::Font(img) => {
-      let mut buf = Vec::with_capacity(img.width() * img.height() * 4); // Todo: use pixels.len() and factorize 
-      buf.extend(img.srgba_pixels(None).flat_map(|c| c.to_array()));
-      (buf, img.width() as u32, img.height() as u32)
+      // srgba_pixels(None) returns an iterator, so I still need a buffer
+      _buf = Some(img.srgba_pixels(None).flat_map(|c| c.to_array()).collect());
+      (_buf.as_ref().unwrap().as_slice(), img.width() as u32, img.height() as u32)
     }
   };
 
@@ -50,7 +52,7 @@ pub fn update_egui_texture<'a>(id: &egui::TextureId, delta: &ImageDelta,
   // 2. Create the SDL texture, if needed
   let tex = textures.entry(*id).or_insert_with(|| {
     let mut t = tc.create_texture_streaming(SDL_EGUI_FORMAT, w, h) // ABGR8888 on Little-Endian               
-      .expect("failed to create atlas texture");
+      .expect("Failed to create egui/sdl texture");
     t.set_blend_mode(BlendMode::Blend);
     t
   });
@@ -80,7 +82,7 @@ impl<'a> Painter<'a> {
     &mut self, 
     pixels_per_point: f32,
     textures_delta: &TexturesDelta, texture_creator: &'a TextureCreator<WindowContext>, 
-    paint_jobs: &[ClippedPrimitive], canvas: &mut Canvas<Window>) {
+    paint_jobs: &[ClippedPrimitive], canvas: &mut Canvas<Window>) -> Result<(), String> {
     for (id, delta) in &textures_delta.set {
       update_egui_texture(id, &delta, &mut self.texture_map, &texture_creator).unwrap();
     }
@@ -90,8 +92,7 @@ impl<'a> Painter<'a> {
       // 1) Skip Primitive::PaintCallback (which is advanced stuff), focus on Mesh
       let Primitive::Mesh(mesh) = primitive 
         else {
-          println!("WARNING / TODO: PaintCallbacks are not supported, for now.");
-          continue;
+          return Err("WARNING / TODO: PaintCallbacks are not supported, for now.".to_owned());
         };
 
       // 2) Get the sdl texture
@@ -138,7 +139,7 @@ impl<'a> Painter<'a> {
         )
       };
       if rv != 0 {
-        println!("WARNING: SDL_RenderGeometry failed."); // TODO log ? 
+        return Err(format!("SDL_RenderGeometry failed with error {}", rv));
       }
     }
     canvas.set_clip_rect(None); 
@@ -146,5 +147,7 @@ impl<'a> Painter<'a> {
     for &id in &textures_delta.free {
       self.texture_map.remove(&id);
     }
+
+    Ok(())
   }
 }
