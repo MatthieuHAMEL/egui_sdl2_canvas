@@ -30,10 +30,8 @@ pub fn update_egui_texture<'a>(id: &egui::TextureId, delta: &ImageDelta,
   textures: &mut HashMap<egui::TextureId, Texture<'a>>,
   tc: &'a TextureCreator<WindowContext>) -> Result<(), String> 
 {
-  // 1. Flatten (TODO , some allocations may be avoided here, see :
-  // https://github.com/emilk/egui/blob/81b7e7f05a6b03fa2cd5bdc6d4ce5f598e16c628/crates/egui_glow/src/painter.rs#L470)
-  // Allocate buffer outside the match to ensure it lives long enough
-  let mut _buf: Option<Vec<u8>> = None;
+  // 1. Flatten
+  let mut _buf: Option<Vec<u8>> = None; // allocated outside the match for lifetime
 
   let (bytes, w, h): (&[u8], u32, u32) = match &delta.image {
     egui::ImageData::Color(img) => {
@@ -57,7 +55,7 @@ pub fn update_egui_texture<'a>(id: &egui::TextureId, delta: &ImageDelta,
     t
   });
 
-  // Patch upload (or full upload)
+  // 3. Patch upload (or full upload)
   if let Some([x, y]) = delta.pos {
       let rect = Rect::new(x as i32, y as i32, w, h);
       tex.update(rect, &bytes, pitch).unwrap();
@@ -83,6 +81,7 @@ impl<'a> Painter<'a> {
     pixels_per_point: f32,
     textures_delta: &TexturesDelta, texture_creator: &'a TextureCreator<WindowContext>, 
     paint_jobs: &[ClippedPrimitive], canvas: &mut Canvas<Window>) -> Result<(), String> {
+
     for (id, delta) in &textures_delta.set {
       update_egui_texture(id, &delta, &mut self.texture_map, &texture_creator).unwrap();
     }

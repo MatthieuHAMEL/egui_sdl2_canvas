@@ -1,7 +1,108 @@
 use std::time::{Duration, Instant};
+use egui::{Color32, Context};
+use egui_plot::{Line, Plot, PlotPoints};
 use egui_sdl2_renderer::Painter;
 use sdl2::{event::Event, image::{self, Sdl2ImageContext}, mixer::{self, Sdl2MixerContext, AUDIO_S16LSB, DEFAULT_CHANNELS}, pixels::Color, render::{Canvas, TextureCreator}, ttf::Sdl2TtfContext, video::{Window, WindowContext}, IntegerOrSdlError, Sdl, VideoSubsystem};
 use winapi::{shared::windef::DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, um::winuser::SetProcessDpiAwarenessContext};
+
+pub struct HelloworldApp {
+// Used in the egui window :
+  color: [f32;4],
+  text: String
+}
+
+impl HelloworldApp {
+  pub fn new() -> Self {
+    Self { color: [0.0, 0.0, 0.0, 1.0], text: String::new() }
+  }
+
+  fn show(&mut self, ctx: &Context) {
+    egui::Window::new("Hello, world!").show(&ctx, |ui| {
+      ui.label("Hello, world!");
+      if ui.button("Greet").clicked() {
+        println!("Hello, world!");
+      }
+      ui.horizontal(|ui| {
+        ui.label("Color: ");
+        ui.color_edit_button_rgba_premultiplied(&mut self.color);
+      });
+      ui.code_editor(&mut self.text);
+    });
+  }
+}
+
+struct MoreComplexApp {
+  freq:    f64,
+  running: bool,
+  another_thing: bool,
+  zoom: f32,
+  tint: Color32,
+  t0: Instant,
+}
+
+impl MoreComplexApp {
+  pub fn new() -> Self {
+    Self {
+      freq: 0.0,
+      running: false,
+      another_thing: false,
+      zoom: 0.0,
+      tint: Color32::default(),
+      t0: Instant::now(),
+    }
+  }
+  pub fn show(&mut self, ctx: &Context) {
+    // Left panel
+    egui::SidePanel::left("controls").show(ctx, |ui| {
+      ui.heading("Controls");
+      ui.separator();
+
+      ui.checkbox(&mut self.running, "Animate sine");
+      ui.add(egui::Slider::new(&mut self.freq, 0.1..=10.0).text("frequency"));
+
+      ui.separator();
+      ui.checkbox(&mut self.another_thing, "Another checkbox");
+      ui.add(egui::Slider::new(&mut self.zoom, 0.1..=4.0).text("zoom"));
+      ui.color_edit_button_srgba(&mut self.tint);
+    });
+
+    // Central area
+    egui::CentralPanel::default().show(ctx, |ui| {
+      ui.set_min_width(600.0);
+
+      //  animated sine plot 
+      let dt = self.t0.elapsed().as_secs_f64();
+      let phase = if self.running { dt } else { 0.0 };
+      let points: PlotPoints = (0..1000)
+        .map(|i| {
+          let x = i as f64 * 0.01;
+          [x, (phase + x * self.freq).sin()]
+        }).collect();
+
+      Plot::new("sine")
+        .height(150.0)
+        .include_y(-1.2)
+        .include_y(1.2)
+        .show(ui, |plot_ui| {
+            plot_ui.line(Line::new(points).color(egui::Color32::LIGHT_GREEN));
+        });
+
+      ui.separator();
+
+      // scrollable log
+      egui::ScrollArea::vertical().show(ui, |ui| {
+        egui::Grid::new("log").striped(true).show(ui, |ui| {
+          for i in 0..200 {
+            ui.label(format!("Row {i}"));
+            ui.label(format!("Value {}", i * 42));
+            ui.end_row();
+          }
+        });
+      });
+    });
+  }
+}
+
 
 fn init_sdl2(
   win_title: &str,
@@ -46,7 +147,7 @@ sdl2::mixer::allocate_channels(16);
 
 // Window creation
 let mut windowb = video_subsystem.window(win_title, win_width, win_height);
-windowb.allow_highdpi().position_centered();
+windowb.allow_highdpi().position_centered().resizable();
 
 let window = windowb.build().unwrap();
 
@@ -101,9 +202,7 @@ fn main() {
   let mut event_pump = mysdl2.sdl_context.event_pump().unwrap();
   let target_frame_duration = Duration::from_secs_f32(1.0 / 60.0); // Targeting 60 FPS
 
-  // Used in the egui window :
-  let mut color = [0.0, 0.0, 0.0, 1.0];
-  let mut text = String::new();
+  let mut my_app = MoreComplexApp::new(); // try : HelloworldApp::new();
 
   let start_time = Instant::now();
   'myloop: loop {
@@ -119,17 +218,8 @@ fn main() {
       platform.handle_event(&event, &mysdl2.sdl_context, &mysdl2._video_subsystem);
     }
     let ctx = platform.context();
-    egui::Window::new("Hello, world!").show(&ctx, |ui| {
-      ui.label("Hello, world!");
-      if ui.button("Greet").clicked() {
-        println!("Hello, world!");
-      }
-      ui.horizontal(|ui| {
-        ui.label("Color: ");
-        ui.color_edit_button_rgba_premultiplied(&mut color);
-      });
-      ui.code_editor(&mut text);
-    });
+
+    my_app.show(&ctx);
 
     let output = platform.end_frame(&mut mysdl2._video_subsystem).unwrap();
     let v_primitives = platform.tessellate(&output);
