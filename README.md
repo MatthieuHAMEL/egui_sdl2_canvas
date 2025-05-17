@@ -4,7 +4,7 @@ This is [egui](https://github.com/emilk/egui) over the [canvas](https://docs.rs/
 
 Work in progress, feedback / proposals appreciated! 
 
-The examples folder shows two little applications, using egui_sdl2_platform and my backend. (egui_sdl2_platform is currently limited to egui 0.27, but I made a PR)
+The examples folder shows two little applications, using my painter, and [egui_sdl2_platform](https://github.com/GetAGripGal/egui_sdl2_platform) for all the event handling. (egui_sdl2_platform is currently limited to egui 0.27, but I submitted a PR)
 
 ![it works](screenshots/it_works.png)
 
