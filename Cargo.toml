@@ -1,7 +1,7 @@
 [package]
 name = "egui_sdl2_renderer"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [workspace]
 members = ["examples/*"]
@@ -9,9 +9,5 @@ members = ["examples/*"]
 [dependencies]
 bytemuck = "1.23.0"
 egui = { version = "0.27", default-features = false, features = ["bytemuck"] }
+sdl2 = "0.37"
 sdl2-sys = "0.37"     
-
-[dependencies.sdl2]
-version = "0.37"
-default-features = false
-features = ["image", "mixer", "ttf"]

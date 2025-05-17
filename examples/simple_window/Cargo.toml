@@ -1,16 +1,12 @@
 [package]
 name = "simple_window"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
+sdl2 = "0.37"
 egui = "0.27"
 egui_sdl2_renderer = { path = "../../" }
 egui_sdl2_platform = "0.3"
 winapi = { version = "0.3", features = ["winuser"] }
 egui_plot = "0.27"
-
-[dependencies.sdl2]
-version = "0.37"
-default-features = false
-features = ["image", "mixer", "ttf"]
