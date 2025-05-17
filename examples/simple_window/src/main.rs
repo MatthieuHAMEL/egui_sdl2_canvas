@@ -35,7 +35,7 @@ impl HelloworldApp {
 }
 
 struct MoreComplexApp {
-  freq:    f64,
+  freq: f64,
   running: bool,
   another_thing: bool,
   zoom: f32,
@@ -107,17 +107,12 @@ impl MoreComplexApp {
 }
 
 // Code initializing the SDL 
-fn init_sdl2(
-  win_title: &str,
-  win_width: u32,
-  win_height: u32,
-) -> (Sdl,
-   VideoSubsystem,
-   Canvas<Window>) 
+fn init_sdl2(win_title: &str, win_width: u32, win_height: u32) 
+  -> (Sdl, VideoSubsystem, Canvas<Window>) 
 {
   // For some reason the hint below was not enough and I had to do that
   #[cfg(target_os = "windows")]
-  unsafe {  // TODO this is only on windows ...
+  unsafe {
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
   }
 
