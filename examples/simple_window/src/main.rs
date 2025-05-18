@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 use egui::{Color32, Context};
 use egui_plot::{Line, Plot, PlotPoints};
-use egui_sdl2_renderer::Painter;
+use egui_sdl2_canvas::Painter;
 use sdl2::{event::Event, pixels::Color, render::{Canvas, TextureCreator}, video::{Window, WindowContext}, IntegerOrSdlError, Sdl, VideoSubsystem};
 
 #[cfg(target_os = "windows")]
